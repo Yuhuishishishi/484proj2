@@ -1,5 +1,6 @@
 package project2;
 
+import javax.xml.transform.Result;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -130,13 +131,74 @@ public class MyFakebookOracle extends FakebookOracle {
 	//
 	public void findNameInfo()  { // Query1
         // Find the following information from your database and store the information as shown
-		this.longestFirstNames.add("JohnJacobJingleheimerSchmidt");
-		this.shortestFirstNames.add("Al");
-		this.shortestFirstNames.add("Jo");
-		this.shortestFirstNames.add("Bo");
-		this.mostCommonFirstNames.add("John");
-		this.mostCommonFirstNames.add("Jane");
-		this.mostCommonFirstNamesCount = 10;
+
+		try (Statement stmt =
+					 oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+			// get the longest first name
+			String sql = "SELECT DISTINCT length(first_name) AS length, first_name from " + userTableName +
+					" WHERE first_name is not NULL " +
+					" ORDER by 1 DESC";
+			ResultSet rst = stmt.executeQuery(sql);
+
+			int longestLength = 0;
+			int shortestLength = Integer.MAX_VALUE;
+
+			if (rst.first()) {
+				longestLength = rst.getInt(1);
+			}
+			if (rst.last()) {
+				shortestLength = rst.getInt(1);
+			}
+
+			rst.beforeFirst(); // reset the result set
+
+			// iter  over result set
+			while (rst.next()) {
+				int length = rst.getInt(1);
+				String name = rst.getString(2);
+
+				if (length == longestLength) {
+					this.longestFirstNames.add(name);
+				}
+				if (length == shortestLength) {
+					this.shortestFirstNames.add(name);
+				}
+			}
+
+			// find the most common first names
+			sql = "SELECT count(*), first_name FROM " + userTableName +
+					" WHERE first_name IS NOT NULL " +
+					" GROUP BY first_name " +
+					" ORDER BY 1 DESC";
+			rst = stmt.executeQuery(sql);
+			int mostCommonNameCount = 0;
+			if (rst.first()) {
+				mostCommonNameCount = rst.getInt(1);
+				this.mostCommonFirstNamesCount = mostCommonNameCount;
+			}
+			rst.beforeFirst();
+			while (rst.next()) {
+				int count = rst.getInt(1);
+				String name = rst.getString(2);
+				if (count == mostCommonNameCount) {
+					this.mostCommonFirstNames.add(name);
+				}
+			}
+			rst.close();
+			stmt.close();
+
+
+		} catch (SQLException e) {
+			System.err.println(e.getMessage());
+		}
+
+//		this.longestFirstNames.add("JohnJacobJingleheimerSchmidt");
+//		this.shortestFirstNames.add("Al");
+//		this.shortestFirstNames.add("Jo");
+//		this.shortestFirstNames.add("Bo");
+//		this.mostCommonFirstNames.add("John");
+//		this.mostCommonFirstNames.add("Jane");
+//		this.mostCommonFirstNamesCount = 10;
 	}
 	
 	@Override
@@ -149,10 +211,43 @@ public class MyFakebookOracle extends FakebookOracle {
 	// the constraint that user1_id < user2_id
 	//
 	public void lonelyFriends() {
-		// Find the following information from your database and store the information as shown 
-		this.lonelyFriends.add(new UserInfo(10L, "Billy", "SmellsFunny"));
-		this.lonelyFriends.add(new UserInfo(11L, "Jenny", "BadBreath"));
-		this.countLonelyFriends = 2;
+		// Find the following information from your database and store the information as shown
+		final String COL_USER_ID = "user_id";
+		final String COL_FIRST_NAME = "first_name";
+		final String COL_LAST_NAME = "last_name";
+		try (Statement stmt =
+					 oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+			String sql = "SELECT U.user_id, U.first_name, U.last_name FROM " + userTableName + " U " +
+					" WHERE NOT EXISTS(" +
+					"    SELECT * FROM " + friendsTableName + " F " +
+					"    WHERE U.user_id = F.user1_id OR U.user_id = F.user2_id" +
+					")";
+			ResultSet rst = stmt.executeQuery(sql);
+
+			int count = 0;
+			while (rst.next()) {
+				String userIDStr = rst.getString(COL_USER_ID);
+				long userID = Long.parseLong(userIDStr);
+				String firstName = rst.getString(COL_FIRST_NAME);
+				String lastName = rst.getString(COL_LAST_NAME);
+
+				UserInfo user = new UserInfo(userID, firstName, lastName);
+				this.lonelyFriends.add(user);
+				count++;
+			}
+
+			this.countLonelyFriends = count;
+
+			rst.close();
+			stmt.close();
+
+		} catch (SQLException e) {
+			System.err.println(e.getMessage());
+		}
+
+//		this.lonelyFriends.add(new UserInfo(10L, "Billy", "SmellsFunny"));
+//		this.lonelyFriends.add(new UserInfo(11L, "Jenny", "BadBreath"));
+//		this.countLonelyFriends = 2;
 	}
 	 
 	@Override
