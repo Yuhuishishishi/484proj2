@@ -27,7 +27,7 @@ public class MyFakebookOracle extends FakebookOracle {
 	String photoTableName = null;
 	String coverPhotoTableName = null;
 	String tagTableName = null;
-	
+
 	
 	// DO NOT modify this constructor
 	public MyFakebookOracle(String u, Connection c) {
@@ -210,9 +210,7 @@ public class MyFakebookOracle extends FakebookOracle {
 	//
 	public void lonelyFriends() {
 		// Find the following information from your database and store the information as shown
-		final String COL_USER_ID = "user_id";
-		final String COL_FIRST_NAME = "first_name";
-		final String COL_LAST_NAME = "last_name";
+
 		try (Statement stmt =
 					 oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
 			String sql = "SELECT U.user_id, U.first_name, U.last_name FROM " + userTableName + " U " +
@@ -224,10 +222,10 @@ public class MyFakebookOracle extends FakebookOracle {
 
 			int count = 0;
 			while (rst.next()) {
-				String userIDStr = rst.getString(COL_USER_ID);
+				String userIDStr = rst.getString("user_id");
 				long userID = Long.parseLong(userIDStr);
-				String firstName = rst.getString(COL_FIRST_NAME);
-				String lastName = rst.getString(COL_LAST_NAME);
+				String firstName = rst.getString("first_name");
+				String lastName = rst.getString("last_name");
 
 				this.lonelyFriends.add(new UserInfo(userID, firstName, lastName));
 				count++;
@@ -301,7 +299,7 @@ public class MyFakebookOracle extends FakebookOracle {
 				" JOIN " + albumTableName + " A " +
 				" ON P.album_id = A.album_id " +
 				" WHERE tag_photo_id IN (" +
-				"  SELECT *" +
+				"  SELECT *" +                                                // order tag_photos by the number of tagged users
 				"  FROM (" +
 				"    SELECT tag_photo_id" +
 				"    FROM " + tagTableName +
@@ -393,9 +391,9 @@ public class MyFakebookOracle extends FakebookOracle {
 		String sql = "SELECT * FROM (" +
 				"SELECT U1.user_id as female_id, U2.user_id as male_id, T.count" +
 				" FROM " + userTableName + " U1, " + userTableName + " U2," +
-				"    (SELECT count(*) as count, user1_id, user2_id" +
-				"     FROM (" +
-				"       SELECT" +
+				"    (SELECT count(*) as count, user1_id, user2_id" +                        // a table that contains
+				"     FROM (" +                                                                // pairs of user that are
+				"       SELECT" +                                                            // tagged in the same photo
 				"         T1.tag_photo_id," +
 				"         T1.tag_subject_id AS user1_id," +
 				"         T2.tag_subject_id AS user2_id" +
@@ -405,9 +403,9 @@ public class MyFakebookOracle extends FakebookOracle {
 				"     )" +
 				"     GROUP BY user1_id, user2_id" +
 				"     ORDER BY 1 desc)  T" +
-				" WHERE (U2.gender = 'male' and U1.gender = 'female')" +
-				" AND abs(U1.year_of_birth - U2.year_of_birth) <= ?" +
-				" AND not exists(" +
+				" WHERE (U2.gender = 'male' and U1.gender = 'female')" +                    // one female, one male
+				" AND abs(U1.year_of_birth - U2.year_of_birth) <= ?" +                        // age within yeardiff
+				" AND not exists(" +                                                        // not friends
 				"    SELECT *" +
 				"    FROM " + friendsTableName +
 				"    WHERE (user1_id = U1.user_id and user2_id = U2.user_id)" +
@@ -420,8 +418,7 @@ public class MyFakebookOracle extends FakebookOracle {
 
 
 		try (PreparedStatement preparedStatement =
-					 oracleConnection.prepareStatement(sql, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
-			 Statement stmt = oracleConnection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+					 oracleConnection.prepareStatement(sql, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
 			// find the user id of pairs
 			preparedStatement.setInt(1, yearDiff);
 			preparedStatement.setInt(2, n);
@@ -491,9 +488,9 @@ public class MyFakebookOracle extends FakebookOracle {
 					mp.addSharedPhoto(new PhotoInfo(photoID, albumID, albumName, caption, link));
 				}
 				this.bestMatches.add(mp);
+				ps.close();
 
 			}
-			ps.close();
 			rst.close();
 			preparedStatement.close();
 
@@ -545,18 +542,18 @@ public class MyFakebookOracle extends FakebookOracle {
 					"  count(DISTINCT U3.user_id)" +
 					" FROM " + userTableName + " U1, " + userTableName + " U2, " + userTableName + " U3 " +
 					" WHERE U1.user_id < U2.user_id" +
-					"      AND NOT exists(" +
+					"      AND NOT exists(" +                                            // not friends
 					"    SELECT *" +
 					"    FROM " + friendsTableName +
 					"    WHERE user1_id = U1.user_id AND user2_id = U2.user_id" +
 					")" +
-					"      AND exists(" +
+					"      AND exists(" +                                                // user1 and user3 are friends
 					"          SELECT *" +
 					"          FROM " + friendsTableName +
 					"          WHERE user1_id = U1.user_id AND user2_id = U3.user_id" +
 					"                OR user1_id = U3.user_id AND user2_id = U1.user_id" +
 					"      )" +
-					"      AND exists(" +
+					"      AND exists(" +                                                // user2 and user3 are friends
 					"          SELECT *" +
 					"          FROM " + friendsTableName +
 					"          WHERE user1_id = U2.user_id AND user2_id = U3.user_id" +
@@ -748,10 +745,10 @@ public class MyFakebookOracle extends FakebookOracle {
 					" JOIN " + hometownCityTableName + " C2 " +
 					" ON U2.user_id = C2.user_id" +
 					" WHERE U1.user_id < U2.user_id" +
-					" AND U1.first_name = U2.first_name" +
-					" AND C1.hometown_city_id = C2.hometown_city_id" +
-					" AND abs(U1.year_of_birth - U2.year_of_birth) <= 10" +
-					" AND EXISTS(" +
+					" AND U1.first_name = U2.first_name" +                                // same family name
+					" AND C1.hometown_city_id = C2.hometown_city_id" +                    // same hometown
+					" AND abs(U1.year_of_birth - U2.year_of_birth) <= 10" +                // age within yeardiff
+					" AND EXISTS(" +                                                    // are friends
 					"  SELECT * FROM " + friendsTableName +
 					"  WHERE user1_id = U1.user_id and user2_id = U2.user_id" +
 					")" +
